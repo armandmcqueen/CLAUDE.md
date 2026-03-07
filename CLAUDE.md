@@ -1,10 +1,12 @@
-# CLAUDE.md — Shared Development Conventions
+# CLAUDE.md — Global Conventions
 
-This file has two sections. **Section 1** applies to any project. **Section 2** describes conventions specific to my personal projects but not all of them — include it when it applies.
+This is a global CLAUDE.md applied to all projects. Project-specific CLAUDE.md files take precedence for project-specific details, but the principles here always apply.
+
+This file has two sections. **Section 1** applies universally. **Section 2** describes conventions for my personal projects — apply it when the project-level CLAUDE.md indicates it, or when working in a repo that clearly follows these patterns.
 
 ---
 
-## Section 1: Universal Development Philosophy
+## Section 1: Universal
 
 ### Human-in-the-Loop
 
@@ -37,7 +39,7 @@ Tests that run via the standard test command should never hit real infrastructur
 
 ### Scratch Notes
 
-Every session uses scratch notes in `claude/scratch/` for continuity across sessions and context compaction. Each branch gets a pair of files:
+Every session uses scratch notes in `claude/scratch/` (relative to the project root) for continuity across sessions and context compaction. Each branch gets a pair of files:
 
 - **`<branch>_state.md`** — Current snapshot: what exists, key files, current status, known issues. Updated in-place as things change — always reflects the present state.
 - **`<branch>_log.md`** — Append-only chronological record of what was done. Each session gets a timestamped entry (use `date -u '+%Y-%m-%dT%H:%M:%SZ'` for the timestamp) listing changes made.
@@ -53,7 +55,7 @@ Every session uses scratch notes in `claude/scratch/` for continuity across sess
 
 Keep entries concise — these are working notes for yourself, not documentation for humans.
 
-Note: `claude/scratch/` does not need to be committed. In projects that use the branch+state+log pattern natively, commit them. In other projects, `.gitignore` the directory — it still provides cross-session continuity within the local environment.
+Whether `claude/scratch/` is committed or gitignored is project-specific. Either way, it provides cross-session continuity within the local environment.
 
 ### Git Policy
 
@@ -74,9 +76,9 @@ Both docs should be kept current as the code evolves. When a PR changes a compon
 
 ### Pre-Review Checklist
 
-Before opening a PR, the user may ask Claude to run the pre-review process. This is only run on demand, not on every change.
+Before opening a PR, the user may ask to run the pre-review process. This is only run on demand, not on every change. Check the project-level CLAUDE.md or package.json/Makefile for the specific commands.
 
-**Automated checks** (commands are project-specific — check the project's CLAUDE.md or package.json):
+**Automated checks:**
 1. Tests pass
 2. Build succeeds
 3. Lint passes
@@ -87,7 +89,7 @@ Before opening a PR, the user may ask Claude to run the pre-review process. This
 
 **Manual review:**
 6. No leftover debug code — no stray `console.log`, commented-out code, or TODOs from the work session
-7. Docs match code — CLAUDE.md reflects actual state. README.md and DESIGN.md for affected components have been written or updated.
+7. Docs match code — CLAUDE.md files reflect actual state. README.md and DESIGN.md for affected components have been written or updated.
 8. No unintended changes — review `git diff` to confirm only expected files are touched
 9. No secrets or sensitive data in the diff
 
@@ -103,7 +105,7 @@ Before opening a PR, the user may ask Claude to run the pre-review process. This
 
 ## Section 2: Personal Project Conventions
 
-These conventions apply to my personal/side projects. They assume a modern JS/TS stack but the principles carry to other stacks.
+These conventions apply to my personal/side projects. They assume a modern JS/TS stack but the principles carry to other stacks. Apply this section when the project-level CLAUDE.md opts in or when the project clearly follows these patterns (e.g. has a `docker-compose.yml` for local Postgres, uses Drizzle, has `.env.development` checked in).
 
 ### External Infra Philosophy
 
