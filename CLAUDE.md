@@ -145,3 +145,72 @@ E2E tests should use mock modes for AI/external APIs and bypass auth gates where
 ### Centralized Config
 
 Environment-dependent behavior (is this production? should auth be bypassed? which DB driver?) should be centralized in a config module, not scattered as `process.env` checks throughout the codebase. This makes it easy to audit what varies by environment.
+
+## Available tools
+
+- `gtimeout`
+- `rg`
+- `jsonpeek`
+- `pystr`
+
+### `jsonpeek`
+
+JSON structural explorer for agents. Use jsonpeek instead of writing Python
+to inspect, navigate, or compare JSON data. One command replaces five rounds
+of `python3 -c "import json..."`.
+
+WHEN TO USE:
+- You need to understand the structure of an unfamiliar JSON file
+- You want to extract a value at a known path
+- You need to compare structures across files or array elements
+- You want to find where a key name appears in a deeply nested object
+
+WHEN NOT TO USE:
+- You need to transform/rewrite JSON (use jq or Python)
+- You need to filter arrays by value predicates (use jq)
+- You already know the exact structure and just need a value (use jq -r)
+
+COMMANDS:
+
+jsonpeek help [command]
+Detailed docs for any command. Use when you need output format details or
+advanced options.
+
+jsonpeek schema <file> [path]
+Structural type tree: types, string lengths, array sizes, optional key
+frequency, enum detection. Start here for any unfamiliar JSON file.
+
+jsonpeek peek <file> [path]
+Sampled preview with truncation. Real values, clipped for readability.
+
+jsonpeek get <file> <path>
+Extract raw value at path. Pretty prints objects, raw strings.
+
+jsonpeek keys <file> [path]
+One-level key listing with type, size, preview. Like ls for JSON.
+
+jsonpeek find <file> <key>
+Find all paths where a key name occurs. Substring match.
+
+jsonpeek diff <file> <path> [i] [j]
+Compare array elements or files structurally. Reports key/type differences.
+
+jsonpeek stats <file> [path]
+Size, depth, key counts, largest subtrees.
+
+jsonpeek flat <file> [path]
+Flatten to path = value lines. Best for small subtrees.
+
+GLOBAL FLAGS: --max-depth N, --full, --json, --path P (for multi-file)
+STDIN: command | jsonpeek schema -
+PATHS: .foo.bar[0].baz
+
+SETUP: jsonpeek tool-description >> ~/.claude/CLAUDE.md
+
+TYPICAL WORKFLOW:
+1. jsonpeek schema file.json            — understand the structure
+2. jsonpeek peek file.json .some.path   — see sample data
+3. jsonpeek get file.json .the.value    — extract what you need
+
+## `pystr`
+
