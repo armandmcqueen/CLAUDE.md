@@ -18,18 +18,44 @@ Quick fixes are a good first response, but if two or three attempts don't resolv
 
 With AI-assisted development producing larger PRs, code review alone doesn't scale as the primary confidence mechanism. **Testing is the primary confidence source; code review catches what tests can't** (naming, architecture, intent).
 
-Prioritize testing:
-- User-facing behavior and workflows (does the page load? does the form submit?)
-- Security boundaries (auth checks, input validation)
-- Data integrity (DB operations, file storage)
-- Non-obvious logic (parsers, transformers, state machines)
+**The goal is confidence that features work, not test count.** A mocked unit test that passes regardless of whether the real feature works is worse than no test — it creates false confidence.
 
-Keep lightweight:
-- Pass-through components that just render props
-- Styling and layout details
-- Volatile internals likely to change with refactors
+**Test categories:**
 
-This is directional guidance — use judgment about what's worth testing for each change, not a prescriptive "every X must have Y" rule.
+| Command | What it runs | Speed | Infra needed | CI |
+|---------|-------------|-------|-------------|-----|
+| `pnpm test` | Unit + integration (Vitest) | Fast | None (all mocked) | Yes |
+| `pnpm test:e2e` | Browser tests (Playwright) | Slow (builds prod server) | Postgres (via GH Actions service) | Yes |
+| `pnpm test:live` | Real-infra tests (`*.live.test.ts`) | Medium | Postgres (via Docker or GH Actions service) | Yes |
+
+E2E tests run with `AI_MOCK=true` and `BYPASS_ADMIN_AUTH=true` set via `playwright.config.ts` webServer env.
+
+### Testing Rules
+
+**Choose the right test tier:**
+- **DB operations → `.live.test.ts`** (real Postgres). Do not mock Drizzle query builders — mocked DB tests pass even when the real query is wrong.
+- **Critical user journeys → E2E** (Playwright). See `claude/guidance/CRITICAL_USER_JOURNEYS.md` for the list of journeys that must have E2E coverage.
+- **Pure logic (parsers, transformers, calculators) → unit tests** with mocks where appropriate.
+- **API routes → test the business logic with a real DB**, not the route handler with mocked imports. Middleware and routing are handled by Next.js — mocking them tests nothing.
+- **Components → only test if they have complex state or interaction logic.** Do not write render-without-crash tests.
+
+**When building a feature:**
+1. Check if the feature is part of a critical user journey (`claude/guidance/CRITICAL_USER_JOURNEYS.md`)
+2. If yes: the feature must have E2E test coverage for its journey's happy path
+3. If the feature touches DB operations: write `.live.test.ts` tests, not mocked unit tests
+4. If the feature is short-lived or experimental: build + type-check is sufficient (CI already does this)
+
+**What NOT to write:**
+- Mocked Drizzle query chain tests (false confidence)
+- Render-without-crash component tests (no value)
+- API route tests that import the handler and mock all dependencies (tests the mocks, not the route)
+- Snapshot tests for UI (too brittle, never catch real bugs)
+
+### Critical User Journeys
+
+The file `claude/guidance/CRITICAL_USER_JOURNEYS.md` defines user journeys that must always work. Each journey maps to E2E test coverage.
+
+When building or modifying a feature, check if it touches a critical journey. If a new feature is important enough to be critical, add its journey to the file.
 
 ### Human Understanding
 
@@ -82,6 +108,10 @@ Both docs should be kept current as the code evolves. When a PR changes a compon
 
 - **Comment pragmatically:** JSDoc on every function is overkill, but if you scan 10 files and none have a meaningful comment, we're under-commenting. Inline comments for non-obvious logic; skip comments that just restate the code.
 
+### Planning
+
+When doing plan mode, always save the plan to claude/plans once approved and we start working on the plan.
+
 ### Pre-Review Checklist
 
 Before opening a PR, the user may ask Claude to run the pre-review process. This is only run on demand, not on every change.
@@ -96,13 +126,15 @@ Before opening a PR, the user may ask Claude to run the pre-review process. This
 5. Run `gh api repos/{owner}/{repo}/pulls/{number}/comments` and check for unresolved comments. Ignore resolved comments. Don't assume every comment needs action — consider the idea and flag anything worth discussing.
 
 **Manual review:**
-6. No leftover debug code — no stray `console.log`, commented-out code, or TODOs from the work session
-7. Docs match code — CLAUDE.md reflects actual state. README.md and DESIGN.md for affected components have been written or updated.
-8. No unintended changes — review `git diff` to confirm only expected files are touched
-9. No secrets or sensitive data in the diff
+### Critical journey check
+6. **Critical journeys covered** — Check if the changes touch any journey in `claude/guidance/CRITICAL_USER_JOURNEYS.md`. If so, verify that E2E tests exist for the affected journey and that they pass. If no E2E test exists for an affected journey, flag this to the user — it may need to be written before the PR merges.
+7. No leftover debug code — no stray `console.log`, commented-out code, or TODOs from the work session
+8. Docs match code — CLAUDE.md reflects actual state. README.md and DESIGN.md for affected components have been written or updated.
+9. No unintended changes — review `git diff` to confirm only expected files are touched
+10. No secrets or sensitive data in the diff
 
 **PR review guide:**
-10. Post a comment via `gh pr comment` with:
+11. Post a comment via `gh pr comment` with:
     - **Summary**: What changed and why (2-3 sentences)
     - **Verification**: What was tested and how (commands run, results)
     - **Review notes**: What a human reviewer should focus on — architecture decisions, tradeoffs, areas of uncertainty
