@@ -1,10 +1,10 @@
 # CLAUDE.md — Shared Development Conventions
 
-This file has two sections. **Section 1** applies to any project. **Section 2** describes conventions specific to my personal projects but not all of them — include it when it applies.
+## Code Philosophy
 
----
+### Directional Guidance
 
-## Section 1: Universal Development Philosophy
+**Simplicity is inherently good.** Prefer the simplest solution that works. When in doubt, choose the option that's easier to read, easier to delete, and easier to explain.
 
 ### Human-in-the-Loop
 
@@ -20,33 +20,46 @@ With AI-assisted development producing larger PRs, code review alone doesn't sca
 
 **The goal is confidence that features work, not test count.** A mocked unit test that passes regardless of whether the real feature works is worse than no test — it creates false confidence.
 
-**Test categories:**
+**Prioritize testing:**
+- User-facing behavior and workflows (does the page load? does the form submit?)
+- Security boundaries (auth checks, input validation)
+- Data integrity (DB operations, file storage)
+- Non-obvious logic (parsers, transformers, state machines)
 
-| Command | What it runs | Speed | Infra needed | CI |
-|---------|-------------|-------|-------------|-----|
-| `pnpm test` | Unit + integration (Vitest) | Fast | None (all mocked) | Yes |
-| `pnpm test:e2e` | Browser tests (Playwright) | Slow (builds prod server) | Postgres (via GH Actions service) | Yes |
-| `pnpm test:live` | Real-infra tests (`*.live.test.ts`) | Medium | Postgres (via Docker or GH Actions service) | Yes |
+**Keep lightweight:**
+- Pass-through components that just render props
+- Styling and layout details
+- Volatile internals likely to change with refactors
 
-E2E tests run with `AI_MOCK=true` and `BYPASS_ADMIN_AUTH=true` set via `playwright.config.ts` webServer env.
+This is directional guidance — use judgment about what's worth testing for each change, not a prescriptive "every X must have Y" rule.
+
+**Test categories** (projects should support up to three tiers):
+
+| Tier | What it covers | Speed | Infra needed |
+|------|---------------|-------|-------------|
+| Unit/integration | Logic, components, mocked services | Fast | None |
+| E2E | Browser smoke tests (prod build) | Slow | May need DB via CI service |
+| Live | Real infrastructure (DB, APIs) | Medium | Real services running |
+
+The standard test command must never hit real infrastructure. External services should be mocked. Real-infrastructure tests belong in a separate command. E2E tests should use mock modes for AI/external APIs and bypass auth gates where needed.
 
 ### Testing Rules
 
 **Choose the right test tier:**
-- **DB operations → `.live.test.ts`** (real Postgres). Do not mock Drizzle query builders — mocked DB tests pass even when the real query is wrong.
-- **Critical user journeys → E2E** (Playwright). See `claude/guidance/CRITICAL_USER_JOURNEYS.md` for the list of journeys that must have E2E coverage.
+- **DB operations → live tests** (real DB). Do not mock ORM query builders — mocked DB tests pass even when the real query is wrong.
+- **Critical user journeys → E2E**. See `claude/guidance/CRITICAL_USER_JOURNEYS.md` for the list of journeys that must have E2E coverage.
 - **Pure logic (parsers, transformers, calculators) → unit tests** with mocks where appropriate.
-- **API routes → test the business logic with a real DB**, not the route handler with mocked imports. Middleware and routing are handled by Next.js — mocking them tests nothing.
+- **API routes → test the business logic with a real DB**, not the route handler with mocked imports. Don't mock the framework's routing/middleware layer.
 - **Components → only test if they have complex state or interaction logic.** Do not write render-without-crash tests.
 
 **When building a feature:**
 1. Check if the feature is part of a critical user journey (`claude/guidance/CRITICAL_USER_JOURNEYS.md`)
 2. If yes: the feature must have E2E test coverage for its journey's happy path
-3. If the feature touches DB operations: write `.live.test.ts` tests, not mocked unit tests
+3. If the feature touches DB operations: write live tests, not mocked unit tests
 4. If the feature is short-lived or experimental: build + type-check is sufficient (CI already does this)
 
 **What NOT to write:**
-- Mocked Drizzle query chain tests (false confidence)
+- Mocked ORM query chain tests (false confidence)
 - Render-without-crash component tests (no value)
 - API route tests that import the handler and mock all dependencies (tests the mocks, not the route)
 - Snapshot tests for UI (too brittle, never catch real bugs)
@@ -67,29 +80,35 @@ When the human isn't writing the code, it is difficult to develop understanding 
 
 Spending 50% of the effort writing the main code and 50% of the time writing tools to help the user understand the code that has been written is perfectly valid.
 
-### Test Independence
+### Branch Memory
 
-Tests that run via the standard test command should never hit real infrastructure. External services should be mocked. If tests against real infrastructure are needed, they belong in a separate command with clear prerequisites documented.
+Every session uses branch memory in `claude/memory/<branch>/` for continuity across sessions and context compaction. Each branch gets a directory with two files:
 
-### Scratch Notes
-
-Every session uses scratch notes in `claude/scratch/` for continuity across sessions and context compaction. Each branch gets a pair of files:
-
-- **`<branch>_state.md`** — Current snapshot: what exists, key files, current status, known issues. Updated in-place as things change — always reflects the present state.
-- **`<branch>_log.md`** — Append-only chronological record of what was done. Each session gets a timestamped entry (use `date -u '+%Y-%m-%dT%H:%M:%SZ'` for the timestamp) listing changes made.
+- **`state.md`** — Current snapshot: what exists, key files, current status, known issues. Updated in-place as things change — always reflects the present state.
+- **`log.md`** — Append-only chronological record of what was done. Each session gets a timestamped entry (use `date -u '+%Y-%m-%dT%H:%M:%SZ'` for the timestamp) listing changes made.
 
 **Session start behavior:**
-- **On a branch**: Check if `claude/scratch/<branch>_state.md` and `<branch>_log.md` exist. If they do, read both to load context. If they don't, create them.
-- **On main**: Ask the user whether they want to set up a branch, or if this is a non-writing task (research, review, etc.) that doesn't need scratch notes.
+- **On a branch**: Check if `claude/memory/<branch>/state.md` and `log.md` exist. If they do, read both to load context. If they don't, create them.
+- **On main**: Ask the user whether they want to set up a branch, or if this is a non-writing task (research, review, etc.) that doesn't need branch memory.
 
 **During a session:**
 - Update the log with significant changes as you go (not every micro-step, but enough to reconstruct what happened).
 - Update the state file when the current status meaningfully changes (new features complete, status shifts, new issues discovered).
-- On resumption after context compaction, re-read both files to reconstruct context. Between the scratch notes, git history, and the code itself, you should have enough to continue without the original conversation.
+- On resumption after context compaction, re-read both files to reconstruct context. Between the branch memory, git history, and the code itself, you should have enough to continue without the original conversation.
 
 Keep entries concise — these are working notes for yourself, not documentation for humans.
 
-Note: `claude/scratch/` does not need to be committed. In projects that use the branch+state+log pattern natively, commit them. In other projects, `.gitignore` the directory — it still provides cross-session continuity within the local environment.
+### Scratch Space
+
+`claude/scratch/` is available for temporary files — test data, draft content, one-off scripts, or anything that doesn't fit elsewhere. It is not for branch session notes (use `claude/memory/` for those).
+
+### Future Work and Tasks
+
+`claude/future_work.md` is the index for deferred work — things that come up during a PR but are out of scope, or ideas the user wants to revisit later. When deferring work, append an entry with a timestamp (use `date -u '+%Y-%m-%dT%H:%M:%SZ'`), a description, and enough context for someone to pick it up later. A human will review and prioritize this file periodically.
+
+For larger items that need more detail, create a file in `claude/tasks/` and reference it from `future_work.md`. Task files are informal — they can be rough notes, investigation results, or half-formed plans at any stage of maturity.
+
+When a task is picked up for implementation, it should go through a proper planning session (plan mode) rather than being used as a plan directly. The task file captures what was known at the time; the planning session produces a current, reviewed plan.
 
 ### Git Policy
 
@@ -110,73 +129,62 @@ Both docs should be kept current as the code evolves. When a PR changes a compon
 
 ### Planning
 
-When doing plan mode, always save the plan to claude/plans once approved and we start working on the plan.
+Most work doesn't need a master plan — propose milestones, get approval, and start building. Even small tasks should be broken into milestones with demo points so the human can verify progress and course-correct.
+
+For larger efforts that span many milestones, a **master plan** scopes the full project first. Each milestone is then detailed in a separate **milestone plan** before implementation begins.
+
+Plans are stored in `claude/memory/<branch>/plans/` with timestamped filenames:
+
+```
+claude/memory/<branch>/plans/
+  2026-03-15-1730-dispatch-task-runner-master.md       # Master plan
+  2026-03-15-1745-dispatch-task-runner-milestone-1.md   # Milestone plan
+  2026-03-15-1800-dispatch-task-runner-milestone-2.md
+  2026-03-16-0900-add-qwen-model.md                    # Standalone plan (no master)
+```
+
+Naming convention: `<YYYY-MM-DD-HHMM>-<topic>-<type>.md`
+- **Master plans**: `-master.md`
+- **Milestone plans**: `-milestone-N.md`
+- **Standalone plans** (no master): just `<timestamp>-<topic>.md`
+
+When doing plan mode, always save the plan once approved and before starting implementation. When resuming a conversation from a summary (this is called "compaction") where the last activity was planning, check whether the plan was actually saved to disk — the save step is easily lost during compaction. If the plan file doesn't exist, save it before continuing.
 
 ### Pre-Review Checklist
 
-Before opening a PR, the user may ask Claude to run the pre-review process. This is only run on demand, not on every change.
+Before opening a PR, the user may ask Claude to run the pre-review process. This is only run on demand, not on every change. The review covers the **entire branch/PR**, not just the most recent session.
+
+**Context gathering:**
+1. Read branch memory (`claude/memory/<branch>/state.md` and `log.md`) to understand the full history of work on this branch
+2. Run `git log main..HEAD` and `git diff main` to understand the complete set of changes
 
 **Automated checks** (commands are project-specific — check the project's CLAUDE.md or package.json):
-1. Tests pass
-2. Build succeeds
-3. Lint passes
-4. Generated files are current (if applicable — regenerate and confirm no diff)
+3. Tests pass
+4. Build succeeds
+5. Lint passes
+6. Generated files are current (if applicable — regenerate and confirm no diff)
 
 **PR comment review:**
-5. Run `gh api repos/{owner}/{repo}/pulls/{number}/comments` and check for unresolved comments. Ignore resolved comments. Don't assume every comment needs action — consider the idea and flag anything worth discussing.
+7. Run `gh api repos/{owner}/{repo}/pulls/{number}/comments` and check for unresolved comments. Ignore resolved comments. Don't assume every comment needs action — consider the idea and flag anything worth discussing.
 
 **Manual review:**
-### Critical journey check
-6. **Critical journeys covered** — Check if the changes touch any journey in `claude/guidance/CRITICAL_USER_JOURNEYS.md`. If so, verify that E2E tests exist for the affected journey and that they pass. If no E2E test exists for an affected journey, flag this to the user — it may need to be written before the PR merges.
-7. No leftover debug code — no stray `console.log`, commented-out code, or TODOs from the work session
-8. Docs match code — CLAUDE.md reflects actual state. README.md and DESIGN.md for affected components have been written or updated.
-9. No unintended changes — review `git diff` to confirm only expected files are touched
-10. No secrets or sensitive data in the diff
+8. **Critical journeys covered** — Check if the changes touch any journey in `claude/guidance/CRITICAL_USER_JOURNEYS.md`. If so, verify that E2E tests exist for the affected journey and that they pass. If no E2E test exists for an affected journey, flag this to the user — it may need to be written before the PR merges.
+9. No leftover debug code — no stray `console.log`, commented-out code, or TODOs from the work session
+10. Docs match code — CLAUDE.md reflects actual state. README.md and DESIGN.md for affected components have been written or updated.
+11. No unintended changes — review `git diff main` to confirm only expected files are touched
+12. No secrets or sensitive data in the diff
 
 **PR review guide:**
-11. Post a comment via `gh pr comment` with:
-    - **Summary**: What changed and why (2-3 sentences)
+13. Post a comment via `gh pr comment` with:
+    - **Summary**: What changed and why across the entire branch (2-3 sentences)
     - **Verification**: What was tested and how (commands run, results)
     - **Review notes**: What a human reviewer should focus on — architecture decisions, tradeoffs, areas of uncertainty
     - **Commit message**: A ready-to-use commit message for squash-merge (in a code block for easy copy)
     - End the comment with: `🤖 Generated with Claude Code`
 
----
+### GitHub Comments
 
-## Section 2: Personal Project Conventions
-
-These conventions apply to my personal/side projects. They assume a modern JS/TS stack but the principles carry to other stacks.
-
-### External Infra Philosophy
-
-Content and static data should be build artifacts with no external dependencies — generated JSON, static files, etc. Apps and interactive features can use external services (databases, blob storage, APIs), but the standard test command must never require them. Real-infrastructure tests belong in a separate command.
-
-### Test Categories
-
-Projects should support up to three tiers of testing:
-
-| Tier | What it covers | Speed | Infra needed |
-|------|---------------|-------|-------------|
-| Unit/integration | Logic, components, mocked services | Fast | None |
-| E2E | Browser smoke tests (prod build) | Slow | May need DB via CI service |
-| Live | Real infrastructure (DB, APIs) | Medium | Real services running |
-
-E2E tests should use mock modes for AI/external APIs and bypass auth gates where needed, configured via the test runner's env settings.
-
-### Environment Files
-
-- A tracked env file (e.g. `.env.development`) for non-secret local defaults: feature flags, local DB connection strings, dev-only bypasses.
-- A gitignored env file (e.g. `.env.local`) for secrets: API keys, tokens. Ideally populated by a sync script that pulls from the deployment platform.
-
-### Database Conventions
-
-- Local dev uses Docker (e.g. Docker Compose for Postgres). Schema is applied directly via push commands — no migration files needed locally.
-- Production uses migration files, generated and committed to git, applied at deploy time.
-- A reset command should drop/recreate the local DB, apply the current schema, and seed test data.
-
-### Centralized Config
-
-Environment-dependent behavior (is this production? should auth be bypassed? which DB driver?) should be centralized in a config module, not scattered as `process.env` checks throughout the codebase. This makes it easy to audit what varies by environment.
+When posting any comment on GitHub (PR comments, review replies, issue comments), always end the comment with: `🤖 Generated with Claude Code`
 
 ## Available tools
 
