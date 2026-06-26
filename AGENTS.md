@@ -1,4 +1,6 @@
-# CLAUDE.md — Shared Development Conventions
+# AGENTS.md — Shared Development Conventions
+
+These are my conventions for working with coding agents — they apply on **every** repo I work on, regardless of project. A repo's own `AGENTS.md` adds its project-specific facts (stack, commands, structure, the actual test tiers and critical journeys this file refers to generically); where a repo documents its own specifics, use those.
 
 ## Code Philosophy
 
@@ -26,16 +28,27 @@ Spending 50% of the effort writing the main code and 50% of the time writing too
 
 Quick fixes are a good first response, but if two or three attempts don't resolve a problem, stop and re-evaluate. Step back, list what you know for certain vs what you're assuming, form explicit theories, and add diagnostic steps to collect evidence. Rigorous chains of logic built on proven facts beat rapid trial-and-error for persistent problems.
 
+### Proving Your Work
+
+Never claim something is done, fixed, or working without evidence. "I updated the code" is not evidence that a bug is fixed. "The test passes" or "I ran the server and verified the response" is evidence. If you can't demonstrate it works, say so — don't assert it.
+
+This applies to:
+- Bug fixes — show the failing case now passes
+- New features — show the feature working (test output, CLI output, server response)
+- Refactors — show existing tests still pass and behavior is unchanged
+
+If there's no practical way to verify (e.g. a docs-only change), say that explicitly rather than implying you verified something you didn't.
+
 ### Planning
 
 Most work doesn't need a master plan — propose milestones, get approval, and start building. Even small tasks should be broken into milestones with demo points so the human can verify progress and course-correct.
 
 For larger efforts that span many milestones, a **master plan** scopes the full project first. Each milestone is then detailed in a separate **milestone plan** before implementation begins.
 
-Plans are stored in `claude/memory/<branch>/plans/` with timestamped filenames:
+Plans are stored in `agents/memory/<branch>/plans/` with timestamped filenames:
 
 ```
-claude/memory/<branch>/plans/
+agents/memory/<branch>/plans/
   2026-03-15-1730-dispatch-task-runner-master.md       # Master plan
   2026-03-15-1745-dispatch-task-runner-milestone-1.md   # Milestone plan
   2026-03-15-1800-dispatch-task-runner-milestone-2.md
@@ -53,14 +66,16 @@ When doing plan mode, always save the plan once approved and before starting imp
 
 Readonly git commands (`git status`, `git log`, `git diff`, etc.) are fine to use freely. However, git mutations (commit, push, branch, reset, etc.) should be rare — git history is used to protect against agentic mistakes. Creating a branch for testing something can be acceptable, but should usually be coordinated with the user first.
 
+**Never create merge commits.** To integrate upstream changes into a branch, rebase (`git rebase`) — do not merge. This applies even to `--no-commit` / `--no-ff` exploratory merges; if you need to see how main's changes interact with a branch, do it with rebase or by inspecting diffs, not by entering a merge state.
+
 ### Documentation
 
-Every major component (workspace packages, significant subsystems) gets two docs at its root:
+Two docs are **suggested** for every major component (workspace packages, significant subsystems) — create them by default, but treat this as a recommendation, not a hard rule:
 
 - **`README.md`** — High-level: what it is, how to use it, key concepts, getting started. A new contributor should be able to understand the component's purpose and run it from the README alone.
-- **`DESIGN.md`** — In-depth: architecture, subsystem breakdown, key decisions and tradeoffs, data flow, what was considered and rejected. **This is the primary artifact a human reviews during code review** — it should be detailed enough that the reviewer can evaluate the approach without reading every source file.
+- **`DESIGN.md`** — In-depth: architecture, subsystem breakdown, key decisions and tradeoffs, data flow, what was considered and rejected. When present, this is the primary artifact a human reviews during code review — it should be detailed enough that the reviewer can evaluate the approach without reading every source file.
 
-Both docs should be kept current as the code evolves. When a PR changes a component's behavior or architecture, updating its DESIGN.md is part of the work, not a follow-up task.
+Keep these current as the code evolves. When a PR changes a component's behavior or architecture, updating its DESIGN.md is part of the work, not a follow-up task.
 
 ## Testing
 
@@ -83,29 +98,22 @@ With AI-assisted development producing larger PRs, code review alone doesn't sca
 
 This is directional guidance — use judgment about what's worth testing for each change, not a prescriptive "every X must have Y" rule.
 
-**Test categories** (projects should support up to three tiers):
+### Test Tiers
 
-| Tier | What it covers | Speed | Infra needed |
-|------|---------------|-------|-------------|
-| Unit/integration | Logic, components, mocked services | Fast | None |
-| E2E | Browser smoke tests (prod build) | Slow | May need DB via CI service |
-| Live | Real infrastructure (DB, APIs) | Medium | Real services running |
-
-The standard test command must never hit real infrastructure. External services should be mocked. Real-infrastructure tests belong in a separate command. E2E tests should use mock modes for AI/external APIs and bypass auth gates where needed.
+Tests come in tiers, from fast checks with no external dependencies up to tests against real infrastructure. The **standard test command should never hit real infrastructure** — external services should be mocked, and real-infrastructure tests should live behind a separate command. End-to-end tests should use mock modes for AI/external APIs and bypass auth gates where needed. The specific tiers a project supports, and their commands, belong in that repo's `AGENTS.md`.
 
 ### Rules
 
 **Choose the right test tier:**
-- **Critical user journeys → E2E**. See `claude/guidance/CRITICAL_USER_JOURNEYS.md` for the list of journeys that must have E2E coverage.
+- **Critical user journeys → E2E.** If the repo defines critical user journeys, their happy path should have E2E coverage.
 - **Code that talks to real dependencies (DB, APIs, file systems) → live tests.** Don't mock the layer you're trying to test — mocked dependency tests pass even when the real interaction is broken.
 - **Pure logic (parsers, transformers, calculators) → unit tests** with mocks where appropriate.
 - **Trivial pass-through code → don't test.** If the code just forwards to a framework or library with no logic, testing it tests the framework, not your code.
 
 **When building a feature:**
-1. Check if the feature is part of a critical user journey (`claude/guidance/CRITICAL_USER_JOURNEYS.md`)
-2. If yes: the feature must have E2E test coverage for its journey's happy path
-3. If the feature talks to real dependencies: write live tests, not mocked unit tests
-4. If the feature is short-lived or experimental: build + type-check is sufficient (CI already does this)
+1. If it's part of a critical user journey, it should have E2E coverage for the journey's happy path.
+2. If it talks to real dependencies, write live tests, not mocked unit tests.
+3. If it's short-lived or experimental, build + type-check is sufficient.
 
 **What NOT to write:**
 - Tests that mock the dependency they're supposed to validate (false confidence)
@@ -113,23 +121,17 @@ The standard test command must never hit real infrastructure. External services 
 - Tests that import a handler and mock all its dependencies (tests the mocks, not the code)
 - Snapshot tests for UI (too brittle, never catch real bugs)
 
-### Critical User Journeys
-
-The file `claude/guidance/CRITICAL_USER_JOURNEYS.md` defines user journeys that must always work. Each journey maps to E2E test coverage.
-
-When building or modifying a feature, check if it touches a critical journey. If a new feature is important enough to be critical, add its journey to the file.
-
 ## Project Infrastructure
 
 ### Branch Memory
 
-Every session uses branch memory in `claude/memory/<branch>/` for continuity across sessions and context compaction. Each branch gets a directory with two files:
+Every session uses branch memory in `agents/memory/<branch>/` for continuity across sessions and context compaction. Branch memory is **always tracked in git and pushed** — it is not gitignored. Include branch memory files when staging commits. Each branch gets a directory with two files:
 
 - **`state.md`** — Current snapshot: what exists, key files, current status, known issues. Updated in-place as things change — always reflects the present state.
 - **`log.md`** — Append-only chronological record of what was done. Each session gets a timestamped entry (use `date -u '+%Y-%m-%dT%H:%M:%SZ'` for the timestamp) listing changes made.
 
 **Session start behavior:**
-- **On a branch**: Check if `claude/memory/<branch>/state.md` and `log.md` exist. If they do, read both to load context. If they don't, create them.
+- **On a branch**: Check if `agents/memory/<branch>/state.md` and `log.md` exist. If they do, read both to load context. If they don't, create them.
 - **On main**: Ask the user whether they want to set up a branch, or if this is a non-writing task (research, review, etc.) that doesn't need branch memory.
 
 **During a session:**
@@ -141,13 +143,13 @@ Keep entries concise — these are working notes for yourself, not documentation
 
 ### Scratch Space
 
-`claude/scratch/` is available for temporary files — test data, draft content, one-off scripts, or anything that doesn't fit elsewhere. It is not for branch session notes (use `claude/memory/` for those).
+`agents/scratch/` is available for temporary files — test data, draft content, one-off scripts, or anything that doesn't fit elsewhere. It is not for branch session notes (use `agents/memory/` for those).
 
 ### Future Work and Tasks
 
-`claude/future_work.md` is the index for deferred work — things that come up during a PR but are out of scope, or ideas the user wants to revisit later. When deferring work, append an entry with a timestamp (use `date -u '+%Y-%m-%dT%H:%M:%SZ'`), a description, and enough context for someone to pick it up later. A human will review and prioritize this file periodically.
+`agents/future_work.md` is the index for deferred work — things that come up during a PR but are out of scope, or ideas the user wants to revisit later. When deferring work, append an entry with a timestamp (use `date -u '+%Y-%m-%dT%H:%M:%SZ'`), a description, and enough context for someone to pick it up later. A human will review and prioritize this file periodically.
 
-For larger items that need more detail, create a file in `claude/tasks/` and reference it from `future_work.md`. Task files are informal — they can be rough notes, investigation results, or half-formed plans at any stage of maturity.
+For larger items that need more detail, create a file in `agents/tasks/` and reference it from `future_work.md`. Task files are informal — they can be rough notes, investigation results, or half-formed plans at any stage of maturity.
 
 When a task is picked up for implementation, it should go through a proper planning session (plan mode) rather than being used as a plan directly. The task file captures what was known at the time; the planning session produces a current, reviewed plan.
 
@@ -155,13 +157,13 @@ When a task is picked up for implementation, it should go through a proper plann
 
 ### Pre-Review Checklist
 
-Before opening a PR, the user may ask Claude to run the pre-review process. This is only run on demand, not on every change. The review covers the **entire branch/PR**, not just the most recent session.
+Before opening a PR, the user may ask the agent to run the pre-review process. This is only run on demand, not on every change. The review covers the **entire branch/PR**, not just the most recent session.
 
 **Context gathering:**
-- Read branch memory (`claude/memory/<branch>/state.md` and `log.md`) to understand the full history of work on this branch
+- Read branch memory (`agents/memory/<branch>/state.md` and `log.md`) to understand the full history of work on this branch
 - Run `git log main..HEAD` and `git diff main` to understand the complete set of changes
 
-**Automated checks** (commands are project-specific — check the project's CLAUDE.md or package.json):
+**Automated checks** (commands are project-specific — read them from the repo's `AGENTS.md` or `package.json`):
 - Tests pass
 - Build succeeds
 - Lint passes
@@ -171,9 +173,9 @@ Before opening a PR, the user may ask Claude to run the pre-review process. This
 - Run `gh api repos/{owner}/{repo}/pulls/{number}/comments` and check for unresolved comments. Ignore resolved comments. Don't assume every comment needs action — consider the idea and flag anything worth discussing.
 
 **Manual review:**
-- **Critical journeys covered** — Check if the changes touch any journey in `claude/guidance/CRITICAL_USER_JOURNEYS.md`. If so, verify that E2E tests exist for the affected journey and that they pass. If no E2E test exists for an affected journey, flag this to the user — it may need to be written before the PR merges.
+- **Critical journeys covered** — If the repo defines critical user journeys, check whether the changes touch one. If so, verify E2E tests exist for the affected journey and that they pass; if none exists, flag it — it may need to be written before the PR merges.
 - No leftover debug code — no stray `console.log`, commented-out code, or TODOs from the work session
-- Docs match code — CLAUDE.md reflects actual state. README.md and DESIGN.md for affected components have been written or updated.
+- Docs match code — the repo's `AGENTS.md` reflects actual state. `README.md` and `DESIGN.md` for affected components (where present) have been written or updated.
 - No unintended changes — review `git diff main` to confirm only expected files are touched
 - No secrets or sensitive data in the diff
 
@@ -183,75 +185,42 @@ Before opening a PR, the user may ask Claude to run the pre-review process. This
     - **Verification**: What was tested and how (commands run, results)
     - **Review notes**: What a human reviewer should focus on — architecture decisions, tradeoffs, areas of uncertainty
     - **Commit message**: A ready-to-use commit message for squash-merge (in a code block for easy copy)
-    - End the comment with: `🤖 Generated with Claude Code`
+    - End the comment with: `🤖 Generated with $AGENT`
 
 ### GitHub Comments
 
-When posting any comment on GitHub (PR comments, review replies, issue comments), always end the comment with: `🤖 Generated with Claude Code`
+When posting any comment on GitHub (PR comments, review replies, issue comments), always end the comment with: `🤖 Generated with $AGENT`, substituting your own agent name for `$AGENT`.
 
 ## Available tools
 
 - `gtimeout`
 - `rg`
 - `jsonpeek`
-- `pystr`
+- `gitro`
+- `markdownpeek`
+- `lsrelated`
+- `textplate`
 
 ### `jsonpeek`
 
-JSON structural explorer for agents. Use jsonpeek instead of writing Python
-to inspect, navigate, or compare JSON data. One command replaces five rounds
-of `python3 -c "import json..."`.
+Use instead of writing Python to inspect, navigate, or compare JSON data.
+Run `jsonpeek help` for full command reference.
 
-WHEN TO USE:
-- You need to understand the structure of an unfamiliar JSON file
-- You want to extract a value at a known path
-- You need to compare structures across files or array elements
-- You want to find where a key name appears in a deeply nested object
+### `gitro`
 
-WHEN NOT TO USE:
-- You need to transform/rewrite JSON (use jq or Python)
-- You need to filter arrays by value predicates (use jq)
-- You already know the exact structure and just need a value (use jq -r)
+Use instead of raw `git` for read-only git operations. Blocks mutations (commits, pushes, resets).
 
-COMMANDS:
+### `markdownpeek`
 
-jsonpeek help [command]
-Detailed docs for any command. Use when you need output format details or
-advanced options.
+Use instead of reading entire Markdown files when you only need structure or specific sections.
+Run `markdownpeek tool-description` for full command reference.
 
-jsonpeek schema <file> [path]
-Structural type tree: types, string lengths, array sizes, optional key
-frequency, enum detection. Start here for any unfamiliar JSON file.
+### `lsrelated`
 
-jsonpeek peek <file> [path]
-Sampled preview with truncation. Real values, clipped for readability.
+Use when exploring an unfamiliar codebase to find files frequently accessed together.
+Run `lsrelated tool-description` for full command reference.
 
-jsonpeek get <file> <path>
-Extract raw value at path. Pretty prints objects, raw strings.
+### `textplate`
 
-jsonpeek keys <file> [path]
-One-level key listing with type, size, preview. Like ls for JSON.
-
-jsonpeek find <file> <key>
-Find all paths where a key name occurs. Substring match.
-
-jsonpeek diff <file> <path> [i] [j]
-Compare array elements or files structurally. Reports key/type differences.
-
-jsonpeek stats <file> [path]
-Size, depth, key counts, largest subtrees.
-
-jsonpeek flat <file> [path]
-Flatten to path = value lines. Best for small subtrees.
-
-GLOBAL FLAGS: --max-depth N, --full, --json, --path P (for multi-file)
-STDIN: command | jsonpeek schema -
-PATHS: .foo.bar[0].baz
-
-TYPICAL WORKFLOW:
-1. jsonpeek schema file.json            — understand the structure
-2. jsonpeek peek file.json .some.path   — see sample data
-3. jsonpeek get file.json .the.value    — extract what you need
-
-## `pystr`
-
+Use when working with `.textplate.md` files or composing documents from reusable markdown snippets via `text::` links.
+Run `textplate tool-description` for full command reference.
