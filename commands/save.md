@@ -1,6 +1,6 @@
 # Save Session Progress
 
-Read the "Branch Memory" section of CLAUDE.md to understand how log and state files work in this project.
+Read the "Branch Memory" section of AGENTS.md to understand how log and state files work in this project.
 
 Determine the current git branch. Then update the branch memory for this branch:
 

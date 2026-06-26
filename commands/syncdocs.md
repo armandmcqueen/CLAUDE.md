@@ -2,7 +2,7 @@ Review and update README.md and DESIGN.md files across the repo to match the cur
 
 ## Instructions
 
-1. **Read documentation standards.** Read the "Documentation" section of CLAUDE.md to understand what README.md and DESIGN.md should contain.
+1. **Read documentation standards.** Read the "Documentation" section of AGENTS.md to understand what README.md and DESIGN.md should contain.
 
 2. **Find all documented components.** Search for existing README.md and DESIGN.md files across the entire repo (not just `packages/*/` — also `src/lib/`, `src/components/`, `scripts/`, or anywhere else docs live). Use glob patterns like `**/README.md` and `**/DESIGN.md`, excluding `node_modules/` and `.next/`.
 
@@ -13,7 +13,7 @@ Review and update README.md and DESIGN.md files across the repo to match the cur
 
 4. **Update stale docs.** Edit docs that have drifted from the code. Preserve the author's voice and structure where possible — fix facts, don't rewrite prose for style.
 
-5. **Create missing docs.** Only if a component clearly warrants documentation (significant subsystem, not a leaf directory). Follow the standards from CLAUDE.md.
+5. **Create missing docs.** Only if a component clearly warrants documentation (significant subsystem, not a leaf directory). Follow the standards from AGENTS.md.
 
 6. **Report.** When finished, summarize what was changed:
    - Which files were updated and what changed

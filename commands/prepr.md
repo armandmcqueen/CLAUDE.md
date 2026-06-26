@@ -1,5 +1,5 @@
 ---
-description: Run pre-PR review checklist from CLAUDE.md
+description: Run pre-PR review checklist from AGENTS.md
 ---
 
-Read the CLAUDE.md file in this repository and execute the pre-PR review checklist defined there.
+Read the AGENTS.md file in this repository and execute the pre-PR review checklist defined there.
