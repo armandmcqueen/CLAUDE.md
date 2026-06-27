@@ -39,10 +39,20 @@ LINKS: dict[str, Path] = {
 # Gemini CLI doesn't follow symlinks; it reads files named in settings.json.
 GEMINI_SETTINGS = HOME / ".gemini" / "settings.json"
 
-# Skills -> the portable user skills dir (read by Codex/Grok/Gemini/opencode/pi)
-# plus Claude's own. Commands are Claude-specific slash commands.
-SKILL_TARGETS = [HOME / ".agents" / "skills", HOME / ".claude" / "skills"]
-COMMAND_TARGETS = [HOME / ".claude" / "commands"]
+def skill_targets() -> list[Path]:
+    """Where SKILL.md skills get installed. ~/.agents/skills is the portable dir
+    (Codex/Grok/opencode/pi); Claude and Gemini also keep skills in their own trees."""
+    targets = [HOME / ".agents" / "skills"]
+    for base in (".claude", ".gemini"):
+        if (HOME / base).exists():
+            targets.append(HOME / base / "skills")
+    return targets
+
+
+def command_targets() -> list[Path]:
+    """Claude-style markdown slash commands. (Gemini uses .toml commands; other
+    agents have their own mechanisms — not handled here.)"""
+    return [HOME / ".claude" / "commands"] if (HOME / ".claude").exists() else []
 
 
 def _stamp() -> str:
@@ -120,9 +130,9 @@ def main(dry_run: bool = typer.Option(False, help="Show changes without applying
     typer.echo("  " + wire_gemini(dry_run))
 
     typer.echo("skills + commands (copy):")
-    for line in install_dir(REPO / "skills", SKILL_TARGETS, dry_run):
+    for line in install_dir(REPO / "skills", skill_targets(), dry_run):
         typer.echo("  " + line)
-    for line in install_dir(REPO / "commands", COMMAND_TARGETS, dry_run):
+    for line in install_dir(REPO / "commands", command_targets(), dry_run):
         typer.echo("  " + line)
 
 
