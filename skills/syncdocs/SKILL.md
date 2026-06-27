@@ -1,10 +1,16 @@
+---
+name: syncdocs
+description: Review and update README.md and DESIGN.md files across the repo to match the current code.
+disable-model-invocation: true
+---
+
 Review and update README.md and DESIGN.md files across the repo to match the current code.
 
 ## Instructions
 
-1. **Read documentation standards.** Read the "Documentation" section of AGENTS.md to understand what README.md and DESIGN.md should contain.
+1. **Read documentation standards.** Read the "Documentation" section of `AGENTS.md` to understand what README.md and DESIGN.md should contain.
 
-2. **Find all documented components.** Search for existing README.md and DESIGN.md files across the entire repo (not just `packages/*/` — also `src/lib/`, `src/components/`, `scripts/`, or anywhere else docs live). Use glob patterns like `**/README.md` and `**/DESIGN.md`, excluding `node_modules/` and `.next/`.
+2. **Find all documented components.** Search for existing README.md and DESIGN.md files across the entire repo (not just top-level packages — also library, component, script, and other source directories). Use glob patterns like `**/README.md` and `**/DESIGN.md`, excluding dependency and build directories (e.g. `node_modules/`, `dist/`, `.next/`).
 
 3. **Audit each doc.** For every doc found:
    - Read the doc.
@@ -13,7 +19,7 @@ Review and update README.md and DESIGN.md files across the repo to match the cur
 
 4. **Update stale docs.** Edit docs that have drifted from the code. Preserve the author's voice and structure where possible — fix facts, don't rewrite prose for style.
 
-5. **Create missing docs.** Only if a component clearly warrants documentation (significant subsystem, not a leaf directory). Follow the standards from AGENTS.md.
+5. **Create missing docs.** Only if a component clearly warrants documentation (significant subsystem, not a leaf directory). Follow the standards from `AGENTS.md`.
 
 6. **Report.** When finished, summarize what was changed:
    - Which files were updated and what changed
@@ -25,4 +31,4 @@ Review and update README.md and DESIGN.md files across the repo to match the cur
 - Focus on factual accuracy — do the docs describe what the code actually does today?
 - Don't pad docs with boilerplate. Short and accurate beats long and vague.
 - Check imports, exports, CLI commands, env vars, config options, and API surfaces — these are the most common sources of doc drift.
-- If a package is undergoing active development (uncommitted changes, TODO comments), note that in the report but still update docs to match the current committed state.
+- If a component is undergoing active development (uncommitted changes, TODO comments), note that in the report but still update docs to match the current committed state.
